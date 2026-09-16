@@ -553,13 +553,15 @@
     function tokenizeEcho(input) {
       const tokens = [];
       let cur = '';
-      let curQuote = '';   // quote mode for the token currently being built
+      let curQuote = '';    
+      let tokenQuote = ''; 
       let hasContent = false;
 
       const push = () => {
-        tokens.push({ raw: cur, quote: curQuote });
+        tokens.push({ raw: cur, quote: tokenQuote });
         cur = '';
         curQuote = '';
+        tokenQuote = '';
         hasContent = false;
       };
 
@@ -586,8 +588,10 @@
 
         // unquoted
         if (ch === "'" || ch === '"') {
-          // if we're starting a fresh token, remember its quote style
-          if (!hasContent && cur.length === 0) curQuote = ch;
+          if (!hasContent && cur.length === 0) {
+            curQuote = ch;
+            tokenQuote = ch; // Capture the starting quote type
+          }
           hasContent = true;
           i++; continue;
         }

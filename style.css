@@ -1,0 +1,343 @@
+* {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #0a0705;
+      --bg-panel: #120d09;
+      --amber: #ffb000;
+      --amber-dim: #cc8400;
+      --amber-faint: #7a5200;
+      --border: #3d2b00;
+      --warn: #ff6b35;
+      --ok: #7ee081;
+      --scanline: rgba(255, 176, 0, 0.02);
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, 'Courier New', monospace;
+      --name-opacity: 50%;
+    }
+
+    html, body {
+      background: var(--bg);
+      min-height: 100vh;
+    }
+
+    body {
+      font-family: var(--font-mono);
+      color: var(--amber);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 3vh 16px 4vh;
+      margin: 0;
+      line-height: 1.65;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg,
+        var(--scanline) 0px,
+        var(--scanline) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+      z-index: 100;
+    }
+
+    .wrapper {
+      width: 100%;
+      max-width: 960px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ----- HINT BAR ----- */
+    .hint {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 6px 10px;
+      color: var(--amber-faint);
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      text-align: center;
+      padding: 0 4px;
+      opacity: 0;
+    }
+
+    .hint .hint-label { color: var(--amber-dim); }
+    .hint .hint-item { color: var(--amber-faint); white-space: nowrap; }
+    .hint .hint-sep { color: var(--border); user-select: none; }
+
+    /* ----- TERMINAL CONTAINER ----- */
+    .terminal {
+      width: 100%;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-shadow: 0 0 40px rgba(255, 176, 0, 0.05), 0 20px 60px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      opacity: 0;
+    }
+
+    .titlebar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: #150f0a;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--amber-faint);
+      transition: background 0.3s ease;
+    }
+
+    .terminal.booted .dot { background: var(--amber-dim); }
+    .terminal.booted .dot:nth-child(1) { background: #ff5f56; }
+    .terminal.booted .dot:nth-child(2) { background: #ffbd2e; }
+    .terminal.booted .dot:nth-child(3) { background: #27c93f; }
+
+    .titlebar-label {
+      margin-left: 8px;
+      color: var(--amber-dim);
+      font-size: 13px;
+      letter-spacing: 0.02em;
+    }
+
+    /* ----- OUTPUT AREA ----- */
+    .screen {
+      padding: 22px 22px 18px;
+      min-height: 65vh;
+      max-height: 78vh;
+      overflow-y: auto;
+      font-size: 15.5px;
+    }
+
+    .screen::-webkit-scrollbar { width: 8px; }
+    .screen::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .screen::-webkit-scrollbar-track { background: transparent; }
+
+    .line {
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 0 0 2px;
+    }
+
+    .prompt-line { color: var(--amber-dim); }
+    .prompt-symbol { color: var(--amber-faint); }
+
+    .output {
+      color: var(--amber);
+      margin-bottom: 14px;
+    }
+
+    .output a {
+      color: var(--amber);
+      text-decoration: underline;
+      text-decoration-color: var(--amber-faint);
+      text-underline-offset: 3px;
+    }
+    .output a:hover { color: #fff; }
+
+    .dim { color: var(--amber-dim); }
+    .warn { color: var(--warn); }
+    .ok { color: var(--ok); }
+
+    /* ----- PANEL (metric DSL output) ----- */
+    .panel {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    /* a single row: [label] [value] */
+    .row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      line-height: var(--line-height, 1.65);
+    }
+
+    /* label column: fixed width, dimmed */
+    .row .label {
+      flex: 0 0 auto;
+      color: color-mix(in srgb, rgb(255 176 0) var(--name-opacity), transparent);
+    }
+
+    /* value column: fills remaining space, wraps */
+    .row .value {
+      flex: 1 1 auto;
+      min-width: 0;
+      color: var(--amber);
+      overflow-wrap: anywhere;
+    }
+
+    /* section divider */
+    .section-divider {
+      color: var(--amber-faint);
+      margin: 6px 0 4px;
+    }
+
+    /* free-form (non-panel) output keeps the old style */
+    .freeform {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .freeform a {
+      color: var(--amber);
+      text-decoration: underline;
+      text-decoration-color: var(--amber-faint);
+      text-underline-offset: 3px;
+    }
+    .freeform a:hover { color: #fff; }
+    .freeform a.no-decor { text-decoration: none; }
+    .freeform a.no-decor:hover { text-decoration: underline; }
+
+    /* ----- BOOT LINE STYLES ----- */
+    .boot-line {
+      color: var(--amber-dim);
+      margin: 0 0 2px;
+      white-space: pre-wrap;
+    }
+
+    .boot-tag { color: var(--amber-faint); }
+    .boot-status { color: var(--ok); }
+    .boot-warn { color: var(--warn); }
+
+    .boot-progress {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .boot-progress-label {
+      flex: 1 1 auto;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .boot-progress-bar {
+      flex: 0 0 auto;
+      color: var(--ok);
+      letter-spacing: 0.05em;
+      font-variant-ligatures: none;
+    }
+
+    /* ----- INPUT ROW ----- */
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 22px 18px;
+      flex-shrink: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .input-row.disabled {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .input-row .prompt-symbol { flex-shrink: 0; }
+
+    #cmdInput {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+      width: 0;
+      height: 0;
+      border: 0;
+      padding: 0;
+      margin: 0;
+    }
+
+    .input-visible {
+      display: flex;
+      align-items: center;
+      flex: 1;
+      position: relative;
+      min-height: 24px;
+      cursor: text;
+      overflow-wrap: anywhere;
+    }
+
+    .input-visible .typed-text {
+      color: var(--amber);
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-family: inherit;
+      font-size: inherit;
+      letter-spacing: inherit;
+      line-height: inherit;
+    }
+
+    .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 18px;
+      background: var(--amber);
+      margin-left: 1px;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      50.01%, 100% { opacity: 0; }
+    }
+
+    /* ----- RESPONSIVE ----- */
+    @media (max-width: 820px) {
+      body { padding: 2.5vh 12px 3vh; }
+      .screen { min-height: 60vh; max-height: 72vh; font-size: 15px; }
+      .wrapper { max-width: 100%; }
+    }
+
+    @media (max-width: 560px) {
+      body { padding: 12px 10px 18px; }
+      .wrapper { gap: 10px; }
+
+      .hint { font-size: 11.5px; gap: 4px 8px; line-height: 1.5; }
+
+      .titlebar { padding: 10px 12px; }
+      .titlebar-label { font-size: 12px; }
+
+      .screen {
+        padding: 16px 14px 12px;
+        min-height: 58vh;
+        max-height: 68vh;
+        font-size: 14px;
+      }
+
+      .row { gap: 8px; }
+
+      .input-row { padding: 0 14px 14px; gap: 6px; }
+      .cursor { width: 7px; height: 16px; }
+    }
+
+    @media (max-width: 380px) {
+      .hint { font-size: 11px; }
+      .screen { font-size: 13.5px; padding: 14px 12px 10px; }
+      .titlebar-label { font-size: 11px; }
+    }

@@ -649,7 +649,7 @@
 
     async function fakeNukeSequence() {
       const panicLines = [
-        '<span class="warn">sudo: rm -rf /</span>',
+        '<span class="warn">sudo: rm -rf /*</span>',
         '<span class="warn">WARNING: recursive deletion of root filesystem requested</span>',
         '<span class="dim">checking whether this is a terrible idea...</span>',
         '<span class="warn">this is a terrible idea.</span>',
@@ -907,7 +907,7 @@
         return;
       }
 
-      if (cmd.toLowerCase() === 'sudo rm -rf /') {
+      if (cmd.toLowerCase() === 'sudo rm -rf /*') {
         await fakeNukeSequence();
         return;
       }

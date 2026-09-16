@@ -710,7 +710,7 @@
         { label: 'clear',   value: 'clear the screen' },
         { label: 'help',    value: 'show this list again' },
       ]),
-
+      sl: slCommand,
       whoami: () => renderPanel([
         { text: '<span class="ok">ribs351</span>' },
         { blank: true },
@@ -1173,7 +1173,80 @@
         printRaw('', 'output');
       }
     }
+    // ============================================================
+    // SL — steam locomotive (because you typed `ls` wrong)
+    // ============================================================
+    let slRunning = false;
 
+    function slCommand() {
+      if (slRunning) return null;
+      slRunning = true;
+
+      // Print the witty remark first so it sits above the train
+      printRaw(
+        '<span class="dim">you meant `ls`? ... launching anyway.</span>',
+        'output'
+      );
+
+      const ART = [
+        "       ====        ________                   ___________ ",
+        "  _D _|  |_______/        \\__I_I_____===__|_________| ",
+        "   |(_)---  |   H\\________/ |   |      =|___ ___|   ",
+        "   /    |  |   H  |  |     |   |      ||_| |_||   ",
+        "  |     |  |   H  |__--------------------| [___] |   ",
+        "  | ________|___H__/[][]~\\_______|       |   ",
+        "  |/ |  |-----------I_____I [][] []  D   |=======|__ ",
+        "__/ =| o |=-~~\\  /~~\\  /~~\\  /~~\\ ____Y___________|__ ",
+        " |/-=|___|=    ||    ||    ||    |_____/~\\___/        ",
+        "  \\_/     \\O=====O=====O=====O_/      \\_/            ",
+      ];
+
+      const WIDTH = Math.max(...ART.map(r => r.length));
+      // Screen window width for the train to traverse across
+      const SCREEN_WIDTH = 100; 
+      const totalFrames = WIDTH + SCREEN_WIDTH;
+      const FRAME_MS = 50;
+
+      const container = document.createElement('div');
+      container.className = 'line output';
+      const pre = document.createElement('pre');
+      pre.style.margin = '0';
+      pre.style.font = 'inherit';
+      pre.style.lineHeight = '1.15';
+      pre.style.overflow = 'hidden';
+      container.appendChild(pre);
+      screenEl.appendChild(container);
+
+      let frame = 0;
+
+      function draw() {
+        // As frame increases, the window moves across the padded space from right to left
+        const lines = ART.map(row => {
+          const padded = row.padEnd(WIDTH, ' ');
+          const fullLine = ' '.repeat(SCREEN_WIDTH) + padded + ' '.repeat(SCREEN_WIDTH);
+          // Slide the viewing window from right to left
+          return fullLine.slice(frame, frame + SCREEN_WIDTH);
+        });
+        pre.textContent = lines.join('\n');
+        scrollToBottom();
+      }
+
+      draw();
+
+      const timer = setInterval(() => {
+        frame++;
+        if (frame > totalFrames) {
+          clearInterval(timer);
+          container.remove();
+          printRaw('', 'output');
+          slRunning = false;
+          return;
+        }
+        draw();
+      }, FRAME_MS);
+
+      return null;
+    }
     // ============================================================
     // INIT
     // ============================================================

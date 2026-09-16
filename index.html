@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ribs351 · terminal</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #0a0705;
+      --bg-panel: #120d09;
+      --amber: #ffb000;
+      --amber-dim: #cc8400;
+      --amber-faint: #7a5200;
+      --border: #3d2b00;
+      --warn: #ff6b35;
+      --ok: #7ee081;
+      --scanline: rgba(255, 176, 0, 0.02);
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, 'Courier New', monospace;
+      --name-opacity: 50%;
+    }
+
+    html, body {
+      background: var(--bg);
+      min-height: 100vh;
+    }
+
+    body {
+      font-family: var(--font-mono);
+      color: var(--amber);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 3vh 16px 4vh;
+      margin: 0;
+      line-height: 1.65;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg,
+        var(--scanline) 0px,
+        var(--scanline) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+      z-index: 100;
+    }
+
+    .wrapper {
+      width: 100%;
+      max-width: 960px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ----- HINT BAR ----- */
+    .hint {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 6px 10px;
+      color: var(--amber-faint);
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      text-align: center;
+      padding: 0 4px;
+      opacity: 0;
+    }
+
+    .hint .hint-label { color: var(--amber-dim); }
+    .hint .hint-item { color: var(--amber-faint); white-space: nowrap; }
+    .hint .hint-sep { color: var(--border); user-select: none; }
+
+    /* ----- TERMINAL CONTAINER ----- */
+    .terminal {
+      width: 100%;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-shadow: 0 0 40px rgba(255, 176, 0, 0.05), 0 20px 60px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      opacity: 0;
+    }
+
+    .titlebar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: #150f0a;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--amber-faint);
+      transition: background 0.3s ease;
+    }
+
+    .terminal.booted .dot { background: var(--amber-dim); }
+    .terminal.booted .dot:nth-child(1) { background: #ff5f56; }
+    .terminal.booted .dot:nth-child(2) { background: #ffbd2e; }
+    .terminal.booted .dot:nth-child(3) { background: #27c93f; }
+
+    .titlebar-label {
+      margin-left: 8px;
+      color: var(--amber-dim);
+      font-size: 13px;
+      letter-spacing: 0.02em;
+    }
+
+    /* ----- OUTPUT AREA ----- */
+    .screen {
+      padding: 22px 22px 18px;
+      min-height: 65vh;
+      max-height: 78vh;
+      overflow-y: auto;
+      font-size: 15.5px;
+    }
+
+    .screen::-webkit-scrollbar { width: 8px; }
+    .screen::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .screen::-webkit-scrollbar-track { background: transparent; }
+
+    .line {
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 0 0 2px;
+    }
+
+    .prompt-line { color: var(--amber-dim); }
+    .prompt-symbol { color: var(--amber-faint); }
+
+    .output {
+      color: var(--amber);
+      margin-bottom: 14px;
+    }
+
+    .output a {
+      color: var(--amber);
+      text-decoration: underline;
+      text-decoration-color: var(--amber-faint);
+      text-underline-offset: 3px;
+    }
+    .output a:hover { color: #fff; }
+
+    .dim { color: var(--amber-dim); }
+    .warn { color: var(--warn); }
+    .ok { color: var(--ok); }
+
+    /* ----- PANEL (metric DSL output) ----- */
+    .panel {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    /* a single row: [label] [value] */
+    .row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      line-height: var(--line-height, 1.65);
+    }
+
+    /* label column: fixed width, dimmed */
+    .row .label {
+      flex: 0 0 auto;
+      color: color-mix(in srgb, rgb(255 176 0) var(--name-opacity), transparent);
+    }
+
+    /* value column: fills remaining space, wraps */
+    .row .value {
+      flex: 1 1 auto;
+      min-width: 0;
+      color: var(--amber);
+      overflow-wrap: anywhere;
+    }
+
+    /* section divider */
+    .section-divider {
+      color: var(--amber-faint);
+      margin: 6px 0 4px;
+    }
+
+    /* free-form (non-panel) output keeps the old style */
+    .freeform {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .freeform a {
+      color: var(--amber);
+      text-decoration: underline;
+      text-decoration-color: var(--amber-faint);
+      text-underline-offset: 3px;
+    }
+    .freeform a:hover { color: #fff; }
+    .freeform a.no-decor { text-decoration: none; }
+    .freeform a.no-decor:hover { text-decoration: underline; }
+
+    /* alerts on values */
+    .value.alert-max {
+      background: color-mix(in srgb, rgb(255 176 0) 20%, transparent);
+      box-shadow: 0 -0.075rem 0 0.15rem color-mix(in srgb, rgb(255 176 0) 20%, transparent);
+    }
+    .value.alert-min {
+      outline: 0.15rem solid color-mix(in srgb, rgb(255 176 0) 20%, transparent);
+      outline-offset: 0.075rem;
+      transform: translateY(-0.075rem);
+    }
+
+    /* ----- BOOT LINE STYLES ----- */
+    .boot-line {
+      color: var(--amber-dim);
+      margin: 0 0 2px;
+      white-space: pre-wrap;
+    }
+
+    .boot-tag { color: var(--amber-faint); }
+    .boot-status { color: var(--ok); }
+    .boot-warn { color: var(--warn); }
+
+    .boot-progress {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .boot-progress-label {
+      flex: 1 1 auto;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .boot-progress-bar {
+      flex: 0 0 auto;
+      color: var(--ok);
+      letter-spacing: 0.05em;
+      font-variant-ligatures: none;
+    }
+
+    /* ----- INPUT ROW ----- */
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 22px 18px;
+      flex-shrink: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .input-row.disabled {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .input-row .prompt-symbol { flex-shrink: 0; }
+
+    #cmdInput {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+      width: 0;
+      height: 0;
+      border: 0;
+      padding: 0;
+      margin: 0;
+    }
+
+    .input-visible {
+      display: flex;
+      align-items: center;
+      flex: 1;
+      position: relative;
+      min-height: 24px;
+      cursor: text;
+      overflow-wrap: anywhere;
+    }
+
+    .input-visible .typed-text {
+      color: var(--amber);
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-family: inherit;
+      font-size: inherit;
+      letter-spacing: inherit;
+      line-height: inherit;
+    }
+
+    .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 18px;
+      background: var(--amber);
+      margin-left: 1px;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      50.01%, 100% { opacity: 0; }
+    }
+
+    /* ----- RESPONSIVE ----- */
+    @media (max-width: 820px) {
+      body { padding: 2.5vh 12px 3vh; }
+      .screen { min-height: 60vh; max-height: 72vh; font-size: 15px; }
+      .wrapper { max-width: 100%; }
+    }
+
+    @media (max-width: 560px) {
+      body { padding: 12px 10px 18px; }
+      .wrapper { gap: 10px; }
+
+      .hint { font-size: 11.5px; gap: 4px 8px; line-height: 1.5; }
+
+      .titlebar { padding: 10px 12px; }
+      .titlebar-label { font-size: 12px; }
+
+      .screen {
+        padding: 16px 14px 12px;
+        min-height: 58vh;
+        max-height: 68vh;
+        font-size: 14px;
+      }
+
+      .row { gap: 8px; }
+
+      .input-row { padding: 0 14px 14px; gap: 6px; }
+      .cursor { width: 7px; height: 16px; }
+    }
+
+    @media (max-width: 380px) {
+      .hint { font-size: 11px; }
+      .screen { font-size: 13.5px; padding: 14px 12px 10px; }
+      .titlebar-label { font-size: 11px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="wrapper">
+
+  <div class="hint" id="hint">
+    <span class="hint-label">try:</span>
+    <span class="hint-item">whoami</span>
+    <span class="hint-sep">·</span>
+    <span class="hint-item">projects</span>
+    <span class="hint-sep">·</span>
+    <span class="hint-item">contact</span>
+    <span class="hint-sep">·</span>
+    <span class="hint-item">help</span>
+  </div>
+
+  <div class="terminal" id="terminal">
+    <div class="titlebar">
+      <span class="dot"></span>
+      <span class="dot"></span>
+      <span class="dot"></span>
+      <span class="titlebar-label">ribs351@github.io — zsh</span>
+    </div>
+
+    <div class="screen" id="screen"></div>
+
+    <div class="input-row disabled" id="inputRow">
+      <span class="prompt-symbol">$</span>
+      <div class="input-visible" id="inputVisible">
+        <span class="typed-text" id="typedText"></span>
+        <span class="cursor" id="cursor"></span>
+      </div>
+      <input type="text" id="cmdInput" autocomplete="off" autocapitalize="off" spellcheck="false">
+    </div>
+  </div>
+
+</div>
+
+<script>
+  (function() {
+    // ============================================================
+    // DOM
+    // ============================================================
+    const screenEl    = document.getElementById('screen');
+    const hiddenInput = document.getElementById('cmdInput');
+    const typedText   = document.getElementById('typedText');
+    const inputVisible= document.getElementById('inputVisible');
+    const inputRow    = document.getElementById('inputRow');
+    const terminalEl  = document.getElementById('terminal');
+    const hintEl      = document.getElementById('hint');
+
+    
+
+    function escapeHtml(str) {
+      const d = document.createElement('div');
+      d.innerText = str;
+      return d.innerHTML;
+    }
+
+    // ----- renderPanel -----
+    function renderPanel(rows) {
+      const out = [];
+      for (const row of rows) {
+        if (row == null) continue;
+
+        if (row.blank) {
+          out.push('<div class="row"><span class="value">\u00A0</span></div>');
+          continue;
+        }
+
+        if (row.divider) {
+          out.push(`<div class="row section-divider">${escapeHtml(row.divider)}</div>`);
+          continue;
+        }
+
+        if (row.text !== undefined) {
+          out.push(`<div class="row"><span class="value">${row.text}</span></div>`);
+          continue;
+        }
+
+        // labelled row
+        const { label = '', value = '', alert } = row;
+
+        // --- render label (allows HTML for links) ---
+        let labelHtml;
+        if (label && typeof label === 'object' && label.href) {
+          labelHtml = `<a href="${escapeHtml(label.href)}" target="_blank" rel="noopener" class="no-decor">${escapeHtml(label.text)}</a>`;
+        } else if (label && typeof label === 'object' && label.html !== undefined) {
+          labelHtml = label.html;
+        } else {
+          labelHtml = escapeHtml(String(label));
+        }
+
+        // --- render value (unchanged) ---
+        let valueHtml;
+        let numericValue = null;
+
+        if (value && typeof value === 'object' && value.html !== undefined) {
+          valueHtml = value.html;
+        } else if (value && typeof value === 'object' && value.text !== undefined) {
+          let raw = value.text;
+          if (value.format && formatters[value.format]) {
+            raw = formatters[value.format](raw);
+          }
+          valueHtml = value.href
+            ? `<a href="${escapeHtml(value.href)}" target="_blank" rel="noopener" class="no-decor">${escapeHtml(raw)}</a>`
+            : escapeHtml(raw);
+          numericValue = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/[^\d.-]/g, ''));
+        } else {
+          valueHtml = escapeHtml(String(value));
+          numericValue = typeof value === 'number' ? value : parseFloat(String(value).replace(/[^\d.-]/g, ''));
+        }
+
+        // apply alert class
+        let alertClass = '';
+        if (alert && numericValue != null && !isNaN(numericValue)) {
+          if (alert.max != null && numericValue >= alert.max) alertClass = ' alert-max';
+          else if (alert.min != null && numericValue <= alert.min) alertClass = ' alert-min';
+        }
+
+        out.push(
+          `<div class="row">` +
+            `<span class="label">${labelHtml}</span>` +
+            `<span class="value${alertClass}">${valueHtml}</span>` +
+          `</div>`
+        );
+      }
+      return `<div class="panel">${out.join('')}</div>`;
+    }
+
+    // ============================================================
+    // COMMANDS
+    // ============================================================
+
+    let sudoAttempts = 0;
+    let terminalLocked = false;
+
+    const sudoResponses = [
+      'Permission denied: nice try.',
+      'Permission denied: seriously?',
+      'Permission denied: you already tried that.',
+      'Permission denied: this is getting embarrassing.',
+      'Permission denied: I admire your persistence. I do not respect it.',
+      'Permission denied: sudo privileges are not going to manifest through sheer determination.',
+      'Permission denied: stop typing sudo.',
+      'Permission denied: STOP TYPING SUDO.',
+      'Permission denied: okay, now you are just testing me.',
+      'Permission denied: fine. The terminal needs a timeout.',
+    ];
+
+    const commands = {
+      help: () => renderPanel([
+        { text: 'available commands:' },
+        { blank: true },
+        { label: 'whoami',  value: 'who am i, roughly' },
+        { label: 'projects', value: "things i've built (or am building)" },
+        { label: 'contact', value: 'ways to reach me' },
+        { label: 'sudo',    value: "don't" },
+        { label: 'clear',   value: 'clear the screen' },
+        { label: 'help',    value: 'show this list again' },
+      ]),
+
+      whoami: () => renderPanel([
+        { text: '<span class="ok">ribs351</span>' },
+        { blank: true },
+        { label: 'role',  value: 'senior procrastinator · backend dev · genuine coper' },
+        { label: 'stack', value: 'C# / .NET 8' },
+        { label: 'note',  value: "I build things that (usually) don't crash." },
+        { blank: true },
+        { text: `<span class="dim">type 'projects' to see what that means in practice.</span>` },
+      ]),
+
+      projects: () => renderPanel([
+        { text: '<span class="dim"># TODO: fill these in</span>' },
+        { blank: true },
+        {
+          label: { text: 'VictorNovember_2026', href: 'https://github.com/ribs351/VictorNovember_2026' },
+          value: { html: '<span class="dim">Discord bot rewrite · Discord · .NET 8 · DSharpPlus</span>' },
+        },
+
+        {
+          label: { text: 'CoH2: Defiance', href: 'https://github.com/Team-Defiance/Project-Defiance' },
+          value: { html: '<span class="dim">Gameplay overhaul mod · Company of Heroes 2 · AttributeEditor</span>' },
+        },
+
+        {
+          label: { text: 'KF2AutoGrenades', href: 'https://github.com/ribs351/KF2AutoGrenades' },
+          value: { html: '<span class="dim">XP grind automation · Killing Floor 2 · OpenCvSharp · Tesseract OCR </span>' },
+        },
+      ]),
+
+      contact: () => renderPanel([
+        { label: 'github', value: { text: 'github.com/ribs351', href: 'https://github.com/ribs351' } },
+        { label: 'other',  value: 'ribs351 on discord' },
+      ]),
+
+      sudo: () => {
+      sudoAttempts++;
+
+      const response =
+        sudoResponses[Math.min(sudoAttempts - 1, sudoResponses.length - 1)];
+
+      if (sudoAttempts === 5) {
+        return renderPanel([
+          { text: '<span class="warn">Permission denied.</span>' },
+          { blank: true },
+          { text: '<span class="dim">security has been notified.</span>' },
+          { text: '<span class="dim">(security is one guy named Steve.)</span>' },
+        ]);
+      }
+
+      if (sudoAttempts === 7) {
+        return renderPanel([
+          { text: '<span class="warn">Permission denied.</span>' },
+          { blank: true },
+          { text: '<span class="dim">sudo has been added to the watchlist.</span>' },
+          { text: '<span class="dim">the watchlist is a text file.</span>' },
+        ]);
+      }
+
+      if (sudoAttempts >= 10) {
+        lockTerminal(3);
+        return renderPanel([
+          { text: '<span class="warn">Permission denied: absolutely not.</span>' },
+          { blank: true },
+          { text: '<span class="dim">terminal locked for 3 seconds.</span>' },
+        ]);
+      }
+
+      return renderPanel([
+        { text: `<span class="warn">${response}</span>` },
+        { blank: true },
+        {
+          text: `<span class="dim">sudo attempts: ${sudoAttempts}</span>`
+        },
+      ]);
+    },
+
+      clear: () => {
+        screenEl.innerHTML = '';
+        return null;
+      },
+    };
+
+    const aliases = {
+      cls: 'clear',
+      ls: 'projects',
+      about: 'whoami',
+    };
+
+    function lockTerminal(seconds) {
+      if (terminalLocked) return;
+
+      terminalLocked = true;
+      inputRow.classList.add('disabled');
+      hiddenInput.blur();
+
+      let remaining = seconds;
+
+      const lockLine = printRaw(
+        `<span class="warn">[LOCKED] terminal cooldown: ${remaining}s</span>`,
+        'output'
+      );
+
+      const timer = setInterval(() => {
+        remaining--;
+
+        if (remaining <= 0) {
+          clearInterval(timer);
+          terminalLocked = false;
+          inputRow.classList.remove('disabled');
+          hiddenInput.focus();
+
+          lockLine.innerHTML =
+            '<span class="ok">[UNLOCKED] try behaving yourself.</span>';
+
+          scrollToBottom();
+          return;
+        }
+
+        lockLine.innerHTML =
+          `<span class="warn">[LOCKED] terminal cooldown: ${remaining}s</span>`;
+
+        scrollToBottom();
+      }, 1000);
+    }
+
+    async function fakeNukeSequence() {
+      const panicLines = [
+        '<span class="warn">sudo: rm -rf /</span>',
+        '<span class="warn">WARNING: recursive deletion of root filesystem requested</span>',
+        '<span class="dim">checking whether this is a terrible idea...</span>',
+        '<span class="warn">this is a terrible idea.</span>',
+        '<span class="dim">mounting /dev/regret...</span>',
+        '<span class="dim">formatting reality...</span>',
+        '<span class="dim">deleting /etc...</span>',
+        '<span class="dim">deleting /usr...</span>',
+        '<span class="dim">deleting /home...</span>',
+        '<span class="dim">deleting laws of physics...</span>',
+        '<span class="warn">CRITICAL: reality filesystem integrity compromised</span>',
+        '<span class="warn">████████████████████ 100%</span>',
+        '<span class="dim">...</span>',
+        '<span class="ok">just kidding.</span>',
+        '<span class="ok">Permission denied: this isn\'t even a real shell.</span>',
+      ];
+
+      for (const line of panicLines) {
+        printRaw(line, 'output');
+        scrollToBottom();
+        await new Promise(resolve => setTimeout(resolve, 350));
+      }
+
+      printRaw('', 'output');
+    }
+    // ============================================================
+    // OUTPUT HELPERS
+    // ============================================================
+    function printRaw(html, cls) {
+      const div = document.createElement('div');
+      div.className = 'line ' + (cls || '');
+      div.innerHTML = html;
+      screenEl.appendChild(div);
+      return div;
+    }
+
+    function scrollToBottom() {
+      screenEl.scrollTop = screenEl.scrollHeight;
+    }
+
+    // ============================================================
+    // FLICKER-IN
+    // ============================================================
+    function flickerIn(element, duration = 500, triggerRatio = 0.5, onTrigger) {
+      return new Promise((resolve) => {
+        const flickerCounts = [5, 7, 9];
+        const count = flickerCounts[Math.floor(Math.random() * flickerCounts.length)];
+
+        const times = [];
+        for (let i = 0; i < count - 1; i++) times.push(Math.random() * duration);
+        times.push(duration);
+        times.sort((a, b) => a - b);
+
+        let visible = false;
+        let triggered = false;
+        const triggerTime = duration * triggerRatio;
+
+        element.style.opacity = '0';
+
+        times.forEach((time, index) => {
+          setTimeout(() => {
+            if (!triggered && time >= triggerTime) {
+              triggered = true;
+              onTrigger?.();
+            }
+            visible = !visible;
+            element.style.opacity = visible ? '1' : '0';
+            if (index === times.length - 1) {
+              element.style.opacity = '1';
+              resolve();
+            }
+          }, time);
+        });
+      });
+    }
+
+    // ============================================================
+    // BOOT SEQUENCE
+    // ============================================================
+    function bootSequence() {
+      const steps = [
+        { text: 'ribs351@github.io - v1.0', cls: 'boot-line' },
+        { text: '─────────────────────────────────────────', cls: 'boot-line boot-tag' },
+        { blank: true },
+
+        { text: 'system clock synchronized', cls: 'boot-line', prefix: 'ok' },
+        { text: 'memory check: 640K ought to be enough', cls: 'boot-line', prefix: 'ok' },
+        { text: 'loading kernel modules...', cls: 'boot-line', prefix: 'ok' },
+        { progress: 'mounting /dev/creativity' },
+        { progress: 'initializing caffeine subsystem' },
+        { progress: 'spinning up motivation daemon' },
+
+        { text: 'motivation daemon is idling at 3%', cls: 'boot-line', prefix: 'warn' },
+        { text: 'falling back to coffee-driven mode', cls: 'boot-line', prefix: 'ok' },
+        { text: 'loading portfolio modules', cls: 'boot-line', prefix: 'ok' },
+        { text: 'checking github.com/ribs351 ... reachable', cls: 'boot-line', prefix: 'ok' },
+        { text: 'checking c# runtime ... .NET 8 present', cls: 'boot-line', prefix: 'ok' },
+        { blank: true },
+        { text: 'all systems nominal. handing off to shell.', cls: 'boot-line' },
+        { blank: true },
+      ];
+
+      const LINE_DELAY         = 140;
+      const PROGRESS_TICK_MS   = 55;
+      const TOTAL_BARS         = 14;
+      const GAP_AFTER_PROGRESS = 60;
+
+      function buildStep(step) {
+        if (step.blank) {
+          const el = document.createElement('div');
+          el.className = 'line boot-line';
+          el.innerHTML = '\u00A0';
+          return el;
+        }
+        if (step.progress !== undefined) {
+          const line = document.createElement('div');
+          line.className = 'boot-line boot-progress';
+
+          const label = document.createElement('span');
+          label.className = 'boot-progress-label';
+          label.innerHTML = `<span class="boot-tag">[ .. ]</span> ${escapeHtml(step.progress)}`;
+
+          const bar = document.createElement('span');
+          bar.className = 'boot-progress-bar';
+
+          line.appendChild(label);
+          line.appendChild(bar);
+          line._label = label;
+          line._bar = bar;
+          return line;
+        }
+        const prefixHtml = step.prefix === 'ok'
+          ? '<span class="boot-status">[ OK ]</span> '
+          : step.prefix === 'warn'
+            ? '<span class="boot-warn">[ WARN ]</span> '
+            : '';
+        const text = step.prefix ? step.text.replace(/^\[[^\]]*\]\s*/, '') : step.text;
+
+        const el = document.createElement('div');
+        el.className = step.cls || 'boot-line';
+        el.innerHTML = prefixHtml + escapeHtml(text);
+        return el;
+      }
+
+      function animateProgress(el) {
+        return new Promise((resolve) => {
+          const bar = el._bar;
+          const label = el._label;
+          const labelText = label.innerHTML.replace(/^<span[^>]*>\[ .. \]<\/span>\s*/, '');
+          let filled = 0;
+
+          const tick = () => {
+            filled++;
+            bar.textContent = '█'.repeat(filled) + '░'.repeat(TOTAL_BARS - filled);
+            scrollToBottom();
+            if (filled < TOTAL_BARS) {
+              setTimeout(tick, PROGRESS_TICK_MS);
+            } else {
+              label.innerHTML = `<span class="boot-status">[  OK  ]</span> ${labelText}`;
+              setTimeout(resolve, GAP_AFTER_PROGRESS);
+            }
+          };
+          setTimeout(tick, 30);
+        });
+      }
+
+      return new Promise((resolveAll) => {
+        let i = 0;
+        function next() {
+          if (i >= steps.length) { resolveAll(); return; }
+          const step = steps[i++];
+          const el = buildStep(step);
+          screenEl.appendChild(el);
+          scrollToBottom();
+
+          if (step.progress !== undefined) {
+            animateProgress(el).then(next);
+            return;
+          }
+          setTimeout(next, LINE_DELAY);
+        }
+        setTimeout(next, 200);
+      });
+    }
+
+    // ============================================================
+    // INPUT HANDLING
+    // ============================================================
+    let currentInput = '';
+
+    function syncView() { typedText.textContent = currentInput; }
+
+    function clearInput() {
+      currentInput = '';
+      syncView();
+      hiddenInput.value = '';
+    }
+
+    function onKeyDown(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const cmd = currentInput;
+        runCommand(cmd);
+        clearInput();
+        scrollToBottom();
+        return;
+      }
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        if (currentInput.length > 0) {
+          currentInput = currentInput.slice(0, -1);
+          syncView();
+        }
+        return;
+      }
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        currentInput += e.key;
+        syncView();
+      }
+    }
+
+    function onHiddenInput() {
+      if (hiddenInput.value !== currentInput) {
+        currentInput = hiddenInput.value;
+        syncView();
+      }
+    }
+
+    function onPaste(e) {
+      e.preventDefault();
+      const pasted = (e.clipboardData || window.clipboardData).getData('text');
+      if (pasted) {
+        currentInput += pasted.replace(/[\r\n]+/g, ' ');
+        syncView();
+      }
+    }
+
+    // ============================================================
+    // COMMAND RUNNER
+    // ============================================================
+    async function runCommand(raw) {
+      if (terminalLocked) {
+        printRaw(
+          '<span class="warn">terminal is locked. wait.</span>',
+          'output'
+        );
+        return;
+      }
+
+      const cmd = raw.trim();
+      printRaw(`<span class="prompt-symbol">$</span> ${escapeHtml(cmd)}`, 'prompt-line');
+
+      if (cmd === '') {
+        printRaw('', 'output');
+        return;
+      }
+
+      if (cmd.toLowerCase() === 'sudo rm -rf /') {
+        await fakeNukeSequence();
+        return;
+      }
+
+      const shellCommands = ['sudo -i', 'sudo su -'];
+
+        if (shellCommands.includes(cmd.toLowerCase())) {
+          sudoAttempts++;
+
+          const messages = [
+            "Nice try. This isn't even a real shell.",
+            "You can't `su` into a shell that doesn't exist.",
+            "There is no root account. There isn't even an account.",
+            "You're trying to become root inside a website.",
+            "I need you to understand what you're attempting here.",
+            "This is HTML pretending to be a terminal.",
+            "sudo: reality check failed.",
+          ];
+
+          const message =
+            messages[Math.min(sudoAttempts - 1, messages.length - 1)];
+
+          printRaw(`<span class="warn">${message}</span>`, 'output');
+          printRaw(
+            `<span class="dim">sudo attempts: ${sudoAttempts}</span>`,
+            'output'
+          );
+          printRaw('', 'output');
+          scrollToBottom();
+          return;
+        }
+
+      const lower = cmd.toLowerCase();
+      const key = aliases[lower] || lower;
+      const handler = commands[key];
+
+      if (!handler) {
+        printRaw(`command not found: ${escapeHtml(cmd)} — try 'help'`, 'output warn');
+        printRaw('', 'output');
+        return;
+      }
+
+      const result = handler();
+      if (result !== null && result !== undefined) {
+        printRaw(result, 'output');
+        printRaw('', 'output');
+      }
+    }
+
+    // ============================================================
+    // INIT
+    // ============================================================
+    function init() {
+      setTimeout(() => {
+        flickerIn(terminalEl, 700, 0.5).then(() => {
+          bootSequence().then(() => {
+            terminalEl.classList.add('booted');
+            inputRow.classList.remove('disabled');
+            hiddenInput.focus();
+            flickerIn(hintEl, 500, 0.5);
+          });
+        });
+      }, 150);
+
+      inputVisible.addEventListener('click', () => hiddenInput.focus());
+      document.querySelector('.terminal').addEventListener('click', (e) => {
+        if (e.target.tagName === 'A') return;
+        hiddenInput.focus();
+      });
+
+      hiddenInput.addEventListener('keydown', onKeyDown);
+      hiddenInput.addEventListener('paste', onPaste);
+      hiddenInput.addEventListener('input', onHiddenInput);
+      hiddenInput.addEventListener('beforeinput', (e) => {
+        if (e.inputType !== 'insertFromPaste') e.preventDefault();
+      });
+
+      setInterval(() => {
+        if (hiddenInput.value !== '') {
+          if (hiddenInput.value !== currentInput) {
+            currentInput = hiddenInput.value;
+            syncView();
+          }
+          hiddenInput.value = '';
+        }
+      }, 50);
+
+      window.addEventListener('load', () => hiddenInput.focus());
+    }
+
+    init();
+  })();
+</script>
+
+</body>
+</html>

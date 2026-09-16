@@ -649,7 +649,7 @@
 
     async function fakeNukeSequence() {
       const panicLines = [
-        '<span class="warn">sudo: rm -rf /*</span>',
+        '<span class="warn">sudo: rm -rf /</span>',
         '<span class="warn">WARNING: recursive deletion of root filesystem requested</span>',
         '<span class="dim">checking whether this is a terrible idea...</span>',
         '<span class="warn">this is a terrible idea.</span>',
@@ -856,6 +856,18 @@
         scrollToBottom();
         return;
       }
+      const isWordDelete =
+        (e.key === 'Backspace' && (e.ctrlKey || e.altKey || e.metaKey)) ||
+        (e.key.toLowerCase() === 'w' && e.ctrlKey);
+
+      if (isWordDelete) {
+        e.preventDefault();
+        currentInput = killWordBefore(currentInput);
+        syncView();
+        return;
+      }
+
+      // ---- plain backspace ----
       if (e.key === 'Backspace') {
         e.preventDefault();
         if (currentInput.length > 0) {
@@ -864,13 +876,25 @@
         }
         return;
       }
+
+      // ---- plain character input ----
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         currentInput += e.key;
         syncView();
       }
     }
+    function killWordBefore(str) {
+      let i = str.length;
 
+      // strip trailing whitespace
+      while (i > 0 && /\s/.test(str[i - 1])) i--;
+
+      // strip the word itself
+      while (i > 0 && !/\s/.test(str[i - 1])) i--;
+
+      return str.slice(0, i);
+    }
     function onHiddenInput() {
       if (hiddenInput.value !== currentInput) {
         currentInput = hiddenInput.value;
@@ -907,7 +931,7 @@
         return;
       }
 
-      if (cmd.toLowerCase() === 'sudo rm -rf /*') {
+      if (cmd.toLowerCase() === 'sudo rm -rf /') {
         await fakeNukeSequence();
         return;
       }

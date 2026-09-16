@@ -217,17 +217,6 @@
     .freeform a.no-decor { text-decoration: none; }
     .freeform a.no-decor:hover { text-decoration: underline; }
 
-    /* alerts on values */
-    .value.alert-max {
-      background: color-mix(in srgb, rgb(255 176 0) 20%, transparent);
-      box-shadow: 0 -0.075rem 0 0.15rem color-mix(in srgb, rgb(255 176 0) 20%, transparent);
-    }
-    .value.alert-min {
-      outline: 0.15rem solid color-mix(in srgb, rgb(255 176 0) 20%, transparent);
-      outline-offset: 0.075rem;
-      transform: translateY(-0.075rem);
-    }
-
     /* ----- BOOT LINE STYLES ----- */
     .boot-line {
       color: var(--amber-dim);
@@ -411,8 +400,6 @@
     const terminalEl  = document.getElementById('terminal');
     const hintEl      = document.getElementById('hint');
 
-    
-
     function escapeHtml(str) {
       const d = document.createElement('div');
       d.innerText = str;
@@ -441,55 +428,251 @@
         }
 
         // labelled row
-        const { label = '', value = '', alert } = row;
+        const { label = '', value = '' } = row;
 
-        // --- render label (allows HTML for links) ---
+        // --- render label (link or plain text) ---
         let labelHtml;
         if (label && typeof label === 'object' && label.href) {
           labelHtml = `<a href="${escapeHtml(label.href)}" target="_blank" rel="noopener" class="no-decor">${escapeHtml(label.text)}</a>`;
-        } else if (label && typeof label === 'object' && label.html !== undefined) {
-          labelHtml = label.html;
         } else {
           labelHtml = escapeHtml(String(label));
         }
 
-        // --- render value (unchanged) ---
+        // --- render value ---
         let valueHtml;
-        let numericValue = null;
-
         if (value && typeof value === 'object' && value.html !== undefined) {
           valueHtml = value.html;
         } else if (value && typeof value === 'object' && value.text !== undefined) {
-          let raw = value.text;
-          if (value.format && formatters[value.format]) {
-            raw = formatters[value.format](raw);
-          }
           valueHtml = value.href
-            ? `<a href="${escapeHtml(value.href)}" target="_blank" rel="noopener" class="no-decor">${escapeHtml(raw)}</a>`
-            : escapeHtml(raw);
-          numericValue = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/[^\d.-]/g, ''));
+            ? `<a href="${escapeHtml(value.href)}" target="_blank" rel="noopener" class="no-decor">${escapeHtml(value.text)}</a>`
+            : escapeHtml(value.text);
         } else {
           valueHtml = escapeHtml(String(value));
-          numericValue = typeof value === 'number' ? value : parseFloat(String(value).replace(/[^\d.-]/g, ''));
-        }
-
-        // apply alert class
-        let alertClass = '';
-        if (alert && numericValue != null && !isNaN(numericValue)) {
-          if (alert.max != null && numericValue >= alert.max) alertClass = ' alert-max';
-          else if (alert.min != null && numericValue <= alert.min) alertClass = ' alert-min';
         }
 
         out.push(
           `<div class="row">` +
             `<span class="label">${labelHtml}</span>` +
-            `<span class="value${alertClass}">${valueHtml}</span>` +
+            `<span class="value">${valueHtml}</span>` +
           `</div>`
         );
       }
       return `<div class="panel">${out.join('')}</div>`;
     }
+    // ============================================================
+    // ECHO
+    // ============================================================
+    // Emulates the useful ~80% of bash's `echo` builtin.
+    const ECHO_VARS = {
+      '?': '0',
+      '0': 'zsh',
+      '#': '0',
+      '$': String(42000 + Math.floor(Math.random() * 1000)),
+      USER: 'ribs351',
+      HOME: '/home/ribs351',
+      PWD: '/home/ribs351/portfolio',
+      SHELL: '/bin/zsh',
+      HOSTNAME: 'ribs351.github.io',
+      TERM: 'xterm-256color',
+    };
 
+    function echoExpandVars(str) {
+      // $VAR, ${VAR}, $?, $$, $0, $#
+      return str.replace(
+        /\$(\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*|[?#$0-9])/g,
+        (_, name) => {
+          if (name.startsWith('{')) name = name.slice(1, -1);
+          return ECHO_VARS[name] !== undefined ? ECHO_VARS[name] : '';
+        }
+      );
+    }
+
+    function echoExpandTilde(str) {
+      // only at the start of a word (start of string or after whitespace)
+      return str.replace(/(^|\s)~(?=\/|$|\s)/g, (_, pre) => pre + ECHO_VARS.HOME);
+    }
+
+    function echoApplyEscapes(str) {
+      // Returns { text, stop } where stop=true means \c was hit.
+      let out = '';
+      let i = 0;
+      let stop = false;
+
+      while (i < str.length) {
+        const ch = str[i];
+        if (ch !== '\\') { out += ch; i++; continue; }
+        if (i + 1 >= str.length) { out += '\\'; break; }
+
+        const next = str[i + 1];
+        i += 2;
+
+        switch (next) {
+          case 'a': out += '\x07'; break;
+          case 'b': out += '\b';   break;
+          case 'c': stop = true;   break;
+          case 'e': out += '\x1b'; break;
+          case 'f': out += '\f';   break;
+          case 'n': out += '\n';   break;
+          case 'r': out += '\r';   break;
+          case 't': out += '\t';   break;
+          case 'v': out += '\v';   break;
+          case '\\': out += '\\';  break;
+          case 'x': {
+            // \xHH — up to 2 hex digits
+            const m = /^[0-9a-fA-F]{1,2}/.exec(str.slice(i));
+            if (m) {
+              out += String.fromCharCode(parseInt(m[0], 16));
+              i += m[0].length;
+            } else {
+              out += '\\x';
+            }
+            break;
+          }
+          case '0': {
+            // \0NNN — up to 3 octal digits (after the leading 0)
+            const m = /^[0-7]{1,3}/.exec(str.slice(i));
+            if (m) {
+              out += String.fromCharCode(parseInt(m[0], 8));
+              i += m[0].length;
+            } else {
+              out += '\0';
+            }
+            break;
+          }
+          default:
+            // Unknown escape: real bash keeps the backslash
+            out += '\\' + next;
+        }
+
+        if (stop) break;
+      }
+
+      return { text: out, stop };
+    }
+
+    function tokenizeEcho(input) {
+      const tokens = [];
+      let cur = '';
+      let curQuote = '';   // quote mode for the token currently being built
+      let hasContent = false;
+
+      const push = () => {
+        tokens.push({ raw: cur, quote: curQuote });
+        cur = '';
+        curQuote = '';
+        hasContent = false;
+      };
+
+      let i = 0;
+      while (i < input.length) {
+        const ch = input[i];
+
+        if (curQuote === "'") {
+          if (ch === "'") { curQuote = ''; i++; continue; }
+          cur += ch; i++; continue;
+        }
+
+        if (curQuote === '"') {
+          if (ch === '"') { curQuote = ''; i++; continue; }
+          if (ch === '\\' && i + 1 < input.length) {
+            const n = input[i + 1];
+            if (n === '"' || n === '\\' || n === '$' || n === '`') {
+              cur += n; i += 2; continue;
+            }
+            cur += ch; i++; continue;
+          }
+          cur += ch; i++; continue;
+        }
+
+        // unquoted
+        if (ch === "'" || ch === '"') {
+          // if we're starting a fresh token, remember its quote style
+          if (!hasContent && cur.length === 0) curQuote = ch;
+          hasContent = true;
+          i++; continue;
+        }
+        if (ch === '\\' && i + 1 < input.length) {
+          const n = input[i + 1];
+          if (n === '\n') { i += 2; continue; }
+          cur += n; i += 2; hasContent = true; continue;
+        }
+        if (/\s/.test(ch)) {
+          if (hasContent || cur.length > 0) push();
+          i++; continue;
+        }
+        cur += ch;
+        hasContent = true;
+        i++;
+      }
+      if (hasContent || cur.length > 0) push();
+      return tokens;
+    }
+
+    function echoCommand(rawArgs) {
+      const tokens = tokenizeEcho(rawArgs);
+
+      let noNewline = false;
+      let interpretEscapes = false;
+      let i = 0;
+
+      // parse flags
+      while (i < tokens.length) {
+        const t = tokens[i];
+        if (t.quote) break;                 // quoted "-n" is literal
+        if (t.raw === '--') { i++; break; } // end of options
+        if (t.raw === '-') break;           // lone "-" is an argument
+        if (!/^-[ne]+$/.test(t.raw)) break; // not a flag
+
+        for (const c of t.raw.slice(1)) {
+          if (c === 'n') noNewline = true;
+          if (c === 'e') interpretEscapes = true;
+        }
+        i++;
+      }
+
+      // process remaining tokens
+      const parts = [];
+      let stop = false;
+
+      for (; i < tokens.length && !stop; i++) {
+        const t = tokens[i];
+        let s = t.raw;
+
+        if (t.quote === "'") {
+          // single quotes: fully literal
+        } else if (t.quote === '"') {
+          s = echoExpandVars(s);
+          s = echoExpandTilde(s);
+          if (interpretEscapes) {
+            const r = echoApplyEscapes(s);
+            s = r.text;
+            if (r.stop) stop = true;
+          }
+        } else {
+          // unquoted
+          s = echoExpandVars(s);
+          s = echoExpandTilde(s);
+          if (interpretEscapes) {
+            const r = echoApplyEscapes(s);
+            s = r.text;
+            if (r.stop) stop = true;
+          }
+        }
+
+        parts.push(s);
+      }
+
+      const joined = parts.join(' ');
+      const text = stop ? joined : joined + (noNewline ? '' : '\n');
+
+      // Print the text verbatim.
+      const div = document.createElement('div');
+      div.className = 'line output';
+      div.style.whiteSpace = 'pre-wrap';
+      div.textContent = text;
+      screenEl.appendChild(div);
+      return null;
+    }
     // ============================================================
     // COMMANDS
     // ============================================================
@@ -511,12 +694,14 @@
     ];
 
     const commands = {
+      echo: (args) => echoCommand(args),
       help: () => renderPanel([
         { text: 'available commands:' },
         { blank: true },
         { label: 'whoami',  value: 'who am i, roughly' },
         { label: 'projects', value: "things i've built (or am building)" },
         { label: 'contact', value: 'ways to reach me' },
+        { label: 'echo',    value: 'print things (mostly)' },
         { label: 'sudo',    value: "don't" },
         { label: 'clear',   value: 'clear the screen' },
         { label: 'help',    value: 'show this list again' },
@@ -964,7 +1149,11 @@
           return;
         }
 
-      const lower = cmd.toLowerCase();
+      const firstSpace = cmd.search(/\s/);
+      const name = firstSpace === -1 ? cmd : cmd.slice(0, firstSpace);
+      const argString = firstSpace === -1 ? '' : cmd.slice(firstSpace + 1);
+
+      const lower = name.toLowerCase();
       const key = aliases[lower] || lower;
       const handler = commands[key];
 
@@ -974,7 +1163,7 @@
         return;
       }
 
-      const result = handler();
+      const result = handler(argString);
       if (result !== null && result !== undefined) {
         printRaw(result, 'output');
         printRaw('', 'output');

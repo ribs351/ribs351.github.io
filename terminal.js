@@ -331,6 +331,20 @@
         { blank: true },
         { text: '<span class="dim">There is no filesystem to change here.</span>' },
       ]),
+      rm: (args = '') => {
+        const targets = args.trim().split(/\s+/).filter(Boolean).filter(arg => !arg.startsWith('-'));
+
+        if (targets.length === 0) {
+          return renderPanel([
+            { text: '<span class="warn">rm: missing operand</span>' },
+            { text: '<span class="dim">Permission denied: there is nothing here to remove.</span>' },
+          ]);
+        }
+
+        return renderPanel(targets.map(target => ({
+          text: `<span class="warn">rm: cannot remove '${escapeHtml(target)}': Permission denied</span>`,
+        })));
+      },
       uname: (args = '') => {
         const now = new Date();
         const dateStr = now.toUTCString();
@@ -544,6 +558,7 @@
         { label: 'date',      value: 'date-related commands' },
         { label: 'neofetch',  value: 'you know what this does' },
         { label: 'echo',      value: 'print things (mostly)' },
+        { label: 'rm',        value: 'remove something' },
         { label: 'sudo',      value: "don't" },
         { label: 'clear',     value: 'clear the screen' },
         { label: 'help',      value: 'show this list again' },
@@ -958,7 +973,7 @@
         return;
       }
 
-      if (cmd.toLowerCase() === 'sudo rm -rf /') {
+      if (/^sudo\s+rm\s+-rf\s+\/$/i.test(cmd)) {
         await fakeNukeSequence();
         return;
       }

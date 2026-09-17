@@ -73,18 +73,32 @@
     // ECHO
     // ============================================================
     // Emulates the useful ~80% of bash's `echo` builtin.
-    const ECHO_VARS = {
+    // Shell parameters like $? / $# / $0 are not exported environment variables,
+    // so they live separately from `printenv` output.
+    const SHELL_PARAMS = {
       '?': '0',
       '0': 'zsh',
       '#': '0',
       '$': String(42000 + Math.floor(Math.random() * 1000)),
+    };
+
+    const ENV_VARS = {
       USER: 'ribs351',
       HOME: '/home/ribs351',
       PWD: '/home/ribs351/portfolio',
       SHELL: '/bin/zsh',
       HOSTNAME: 'ribs351.github.io',
       TERM: 'xterm-256color',
+      API_KEY: 'nice_try_fred',
+      GITHUB_TOKEN: 'ghp_nice_try_fred',
+      NODE_ENV: 'production',
+      EDITOR: 'vim',
+      LANG: 'en_US.UTF-8',
     };
+
+    const ECHO_VARS = { ...SHELL_PARAMS, ...ENV_VARS };
+
+    let shellCurrentDir = ENV_VARS.PWD;
 
     function echoExpandVars(str) {
       // $VAR, ${VAR}, $?, $$, $0, $#
@@ -309,16 +323,230 @@
 
     const commands = {
       echo: (args) => echoCommand(args),
+      pwd: () => renderPanel([
+        { text: `<span class="ok">${shellCurrentDir}</span>` },
+      ]),
+      cd: () => renderPanel([
+        { text: '<span class="warn">Nice try. This isn\'t a real shell.</span>' },
+        { blank: true },
+        { text: '<span class="dim">There is no filesystem to change here.</span>' },
+      ]),
+      uname: (args = '') => {
+        const now = new Date();
+        const dateStr = now.toUTCString();
+        const flags = args.trim();
+        const banner = [
+          `Linux github.io 6.9.0-portfolio #1 SMP PREEMPT_DYNAMIC ${dateStr} x86_64 GNU/Linux`,
+          `Linux github.io 6.9.0-portfolio #1-SMP x86_64`,
+        ];
+
+        if (flags === '-a' || flags === '-all') {
+          return renderPanel([
+            { text: `<span class="ok">${banner[0]}</span>` },
+            { blank: true },
+            { text: '<span class="dim">this is a fake shell, you know?</span>' },
+          ]);
+        }
+
+        return renderPanel([
+          { text: '<span class="ok">Linux</span>' },
+        ]);
+      },
+      date: (args = '') => {
+        const sub = args.trim();
+        const parts = sub ? sub.split(/\s+/) : [];
+        const command = parts[0] ? parts[0].toLowerCase() : '';
+        const rest = parts.slice(1).join(' ');
+
+        const supportedZones = [
+          'UTC',
+          'America/New_York',
+          'America/Los_Angeles',
+          'Europe/London',
+          'Europe/Berlin',
+          'Asia/Tokyo',
+          'Australia/Sydney',
+        ];
+
+        const formatForZone = (date, timeZone) => {
+          try {
+            return new Intl.DateTimeFormat('en-US', {
+              timeZone,
+              dateStyle: 'full',
+              timeStyle: 'medium',
+            }).format(date);
+          } catch {
+            return null;
+          }
+        };
+
+        const parseInputDate = (input) => {
+          const trimmed = input.trim();
+          if (!trimmed) return null;
+
+          if (trimmed.toLowerCase() === 'today') return new Date();
+          if (trimmed.toLowerCase() === 'tomorrow') {
+            const d = new Date(); d.setDate(d.getDate() + 1); return d;
+          }
+          if (trimmed.toLowerCase() === 'yesterday') {
+            const d = new Date(); d.setDate(d.getDate() - 1); return d;
+          }
+
+          const parsed = new Date(trimmed);
+          if (!Number.isNaN(parsed.getTime())) return parsed;
+
+          return null;
+        };
+
+        const humanize = (date) => {
+          const diffMs = date.getTime() - Date.now();
+          const absMs = Math.abs(diffMs);
+          const minute = 60 * 1000;
+          const hour = 60 * minute;
+          const day = 24 * hour;
+
+          if (absMs < minute) return diffMs >= 0 ? 'just now' : 'just now';
+          if (absMs < 60 * minute) {
+            const mins = Math.round(absMs / minute);
+            return diffMs >= 0 ? `${mins} minute${mins === 1 ? '' : 's'} from now` : `${mins} minute${mins === 1 ? '' : 's'} ago`;
+          }
+          if (absMs < 24 * hour) {
+            const hours = Math.round(absMs / hour);
+            return diffMs >= 0 ? `${hours} hour${hours === 1 ? '' : 's'} from now` : `${hours} hour${hours === 1 ? '' : 's'} ago`;
+          }
+
+          const days = Math.round(absMs / day);
+          return diffMs >= 0 ? `${days} day${days === 1 ? '' : 's'} from now` : `${days} day${days === 1 ? '' : 's'} ago`;
+        };
+
+        if (sub === '' || sub === '-h' || sub === '--help') {
+          return renderPanel([
+            { text: '<span class="ok">Date-related commands.</span>' },
+            { blank: true },
+            { text: "you must use one of the following subcommands. using this command as-is will only produce this help message." },
+            { blank: true },
+            { text: 'Usage:' },
+            { text: '  <span class="ok">&gt; date</span>' },
+            { blank: true },
+            { text: 'Subcommands:' },
+            { label: 'date from-human',    value: 'convert a human readable datetime string to a datetime.' },
+            { label: 'date humanize',      value: "print a 'humanized' format for the date, relative to now." },
+            { label: 'date list-timezone', value: 'list supported time zones.' },
+            { label: 'date now',           value: 'get the current date.' },
+            { label: 'date to-timezone',   value: 'convert a date to a given time zone.' },
+            { blank: true },
+            { text: 'Flags:' },
+            { label: '-h, --help',         value: 'display this message again' },
+            { blank: true },
+            { text: 'Input/output types:' },
+            { text: '<span class="dim">#   input      output</span>' },
+            { text: '<span class="dim">0   nothing    string</span>' },
+          ]);
+        }
+
+        if (command === 'now') {
+          return renderPanel([
+            { text: `<span class="ok">${new Date().toString()}</span>` }
+          ]);
+        }
+
+        if (command === 'from-human') {
+          const value = parseInputDate(rest);
+          if (!value) {
+            return renderPanel([
+              { text: '<span class="warn">error: could not parse the supplied datetime.</span>' },
+              { text: '<span class="dim">try something like: 2026-09-17T12:00:00Z or today.</span>' },
+            ]);
+          }
+
+          return renderPanel([
+            { text: `<span class="ok">${value.toISOString()}</span>` },
+            { blank: true },
+            { text: `<span class="dim">${value.toString()}</span>` },
+          ]);
+        }
+
+        if (command === 'humanize') {
+          const value = parseInputDate(rest) || new Date();
+          return renderPanel([
+            { text: `<span class="ok">${humanize(value)}</span>` },
+          ]);
+        }
+
+        if (command === 'list-timezone') {
+          return renderPanel([
+            { text: '<span class="dim">supported time zones</span>' },
+            { blank: true },
+            ...supportedZones.map(zone => ({ label: zone, value: formatForZone(new Date(), zone) || 'unavailable' })),
+          ]);
+        }
+
+        if (command === 'to-timezone') {
+          const tzTokens = rest.split(/\s+/).filter(Boolean);
+          if (tzTokens.length < 2) {
+            return renderPanel([
+              { text: '<span class="warn">error: expected <datetime> <timezone>.</span>' },
+              { text: '<span class="dim">example: date to-timezone 2026-09-17T12:00:00Z America/New_York</span>' },
+            ]);
+          }
+
+          const dateText = tzTokens[0];
+          const targetZone = tzTokens.slice(1).join(' ');
+          const parsed = parseInputDate(dateText);
+          if (!parsed) {
+            return renderPanel([
+              { text: '<span class="warn">error: invalid datetime.</span>' },
+              { text: '<span class="dim">use ISO-like strings such as 2026-09-17T12:00:00Z.</span>' },
+            ]);
+          }
+
+          const formatted = formatForZone(parsed, targetZone);
+          if (!formatted) {
+            return renderPanel([
+              { text: `<span class="warn">error: unsupported time zone '${escapeHtml(targetZone)}'</span>` },
+              { text: '<span class="dim">try one of: UTC, America/New_York, Europe/London, Asia/Tokyo.</span>' },
+            ]);
+          }
+
+          return renderPanel([
+            { text: `<span class="ok">${formatted}</span>` },
+            { blank: true },
+            { text: `<span class="dim">timezone: ${escapeHtml(targetZone)}</span>` },
+          ]);
+        }
+
+        return renderPanel([
+          { text: `<span class="warn">error: unknown subcommand '${escapeHtml(sub)}'</span>` },
+          { text: '<span class="dim">type `date` for the help menu.</span>' },
+        ]);
+      },
+      printenv: () => {
+        const envRows = Object.entries(ENV_VARS).map(([key, value]) => ({
+          label: key,
+          value: value,
+        }));
+
+        return renderPanel([
+          ...envRows,
+        ]);
+      },
+      neofetch: () => neofetchCommand(),
       help: () => renderPanel([
         { text: 'available commands:' },
         { blank: true },
-        { label: 'whoami',  value: 'who am i, roughly' },
-        { label: 'projects', value: "things i've built (or am building)" },
-        { label: 'contact', value: 'ways to reach me' },
-        { label: 'echo',    value: 'print things (mostly)' },
-        { label: 'sudo',    value: "don't" },
-        { label: 'clear',   value: 'clear the screen' },
-        { label: 'help',    value: 'show this list again' },
+        { label: 'whoami',    value: 'who am i, roughly' },
+        { label: 'projects',  value: "things i've built (or am building)" },
+        { label: 'contact',   value: 'ways to reach me' },
+        { label: 'pwd',       value: 'print the current working directory' },
+        { label: 'cd',        value: 'change directory' },
+        { label: 'uname',     value: 'print OS details' },
+        { label: 'printenv',  value: 'show environment variables' },
+        { label: 'date',      value: 'date-related commands' },
+        { label: 'neofetch',  value: 'you know what this does' },
+        { label: 'echo',      value: 'print things (mostly)' },
+        { label: 'sudo',      value: "don't" },
+        { label: 'clear',     value: 'clear the screen' },
+        { label: 'help',      value: 'show this list again' },
       ]),
       sl: slCommand,
       whoami: () => renderPanel([
@@ -792,7 +1020,6 @@
       if (slRunning) return null;
       slRunning = true;
 
-      // Print the witty remark first so it sits above the train
       printRaw(
         '<span class="dim">you meant `ls`? ... launching anyway.</span>',
         'output'
@@ -857,6 +1084,65 @@
 
       return null;
     }
+    // ============================================================
+    // NEOFETCH
+    // ============================================================
+    function neofetchCommand() {
+      // The cat
+      const CAT = [
+        "      /\\_/\\  ",
+        "     ( o.o ) ",
+        "      > ^ <  ",
+        "     /     \\ ",
+        "    (       )",
+        "     `-----' ",
+      ];
+
+      const INFO = [
+        ['',                   'ribs351@github.io'],
+        ['',                   '------------------'],
+        ['OS',                 'Debian GNU/Linux (GitHub Pages Edition)'],
+        ['Host',               'github.io'],
+        ['Kernel',             '6.9.0-portfolio'],
+        ['Uptime',             'eternally optimistic'],
+        ['Shell',              '/bin/zsh'],
+        ['Terminal',           'HTML + CSS + mild deception'],
+        ['Packages',           'C# / .NET 8 / chaos'],
+        ['Theme',              'highly caffeinated, tired asf'],
+      ];
+
+      const infoLines = INFO.map(([key, val], idx) => {
+        if (idx === 0) return `<span class="ok">${escapeHtml(val)}</span>`;
+        if (idx === 1) return `<span class="dim">${escapeHtml(val)}</span>`;
+        const k = escapeHtml(key.padEnd(10, ' '));
+        const v = escapeHtml(val);
+        return `<span class="dim">${k}</span> ${v}`;
+      });
+
+      const rows = Math.max(CAT.length, infoLines.length);
+
+      // Compose each visual row: cat (left) + two spaces + info (right).
+      const GAP = '  ';
+      const composed = [];
+      for (let i = 0; i < rows; i++) {
+        const catRow  = (CAT[i]      ?? '').padEnd(14, ' ');
+        const infoRow =  infoLines[i] ?? '';
+        composed.push(catRow + GAP + infoRow);
+      }
+
+      const container = document.createElement('div');
+      container.className = 'line output';
+      const pre = document.createElement('pre');
+      pre.style.margin = '0';
+      pre.style.font = 'inherit';
+      pre.style.lineHeight = '1.15';
+      pre.innerHTML = composed.join('\n');
+      container.appendChild(pre);
+      screenEl.appendChild(container);
+
+      return null;
+    }
+
     // ============================================================
     // INIT
     // ============================================================

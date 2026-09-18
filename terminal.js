@@ -307,6 +307,7 @@
 
     let sudoAttempts = 0;
     let terminalLocked = false;
+    let pendingSudo = null;
 
     const sudoResponses = [
       'Permission denied: nice try.',
@@ -716,6 +717,10 @@
 
       printRaw('', 'output');
     }
+
+    function wait(milliseconds) {
+      return new Promise(resolve => setTimeout(resolve, milliseconds));
+    }
     // ============================================================
     // OUTPUT HELPERS
     // ============================================================
@@ -881,7 +886,9 @@
     // ============================================================
     let currentInput = '';
 
-    function syncView() { typedText.textContent = currentInput; }
+    function syncView() {
+      typedText.textContent = pendingSudo ? '*'.repeat(currentInput.length) : currentInput;
+    }
 
     function clearInput() {
       currentInput = '';
@@ -965,6 +972,39 @@
         return;
       }
 
+      if (pendingSudo) {
+        const sudoAction = pendingSudo;
+        pendingSudo = null;
+
+        if (sudoAction === 'nuke') {
+          printRaw('<span class="ok">eh, close enough.</span>', 'output');
+          await wait(2000);
+          await fakeNukeSequence();
+        } else {
+          sudoAttempts++;
+
+          if (sudoAttempts === 5) {
+            printRaw('<span class="warn">Permission denied.</span>', 'output');
+            printRaw('<span class="dim">security has been notified.</span>', 'output');
+            printRaw('<span class="dim">(security is one guy named Steve.)</span>', 'output');
+          } else if (sudoAttempts === 7) {
+            printRaw('<span class="warn">Permission denied.</span>', 'output');
+            printRaw('<span class="dim">sudo has been added to the watchlist.</span>', 'output');
+            printRaw('<span class="dim">the watchlist is a text file.</span>', 'output');
+          } else if (sudoAttempts >= 10) {
+            printRaw('<span class="warn">Permission denied: absolutely not.</span>', 'output');
+            printRaw('<span class="dim">terminal locked for 3 seconds.</span>', 'output');
+            lockTerminal(3);
+          } else {
+            const response = sudoResponses[Math.min(sudoAttempts - 1, sudoResponses.length - 1)];
+            printRaw(`<span class="warn">${response}</span>`, 'output');
+            printRaw(`<span class="dim">sudo attempts: ${sudoAttempts}</span>`, 'output');
+          }
+          printRaw('', 'output');
+        }
+        return;
+      }
+
       const cmd = raw.trim();
       printRaw(`<span class="prompt-symbol">$</span> ${escapeHtml(cmd)}`, 'prompt-line');
 
@@ -973,8 +1013,9 @@
         return;
       }
 
-      if (/^sudo\s+rm\s+-rf\s+\/$/i.test(cmd)) {
-        await fakeNukeSequence();
+      if (/^sudo(?:\s|$)/i.test(cmd)) {
+        pendingSudo = /^sudo\s+rm\s+-rf\s+\/$/i.test(cmd) ? 'nuke' : 'reject';
+        printRaw('<span class="dim">[sudo] password for ribs351:</span>', 'output');
         return;
       }
 

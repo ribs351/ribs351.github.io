@@ -31,20 +31,12 @@
 
     <div class="screen" id="screen"></div>
 
-    <button class="mobile-input-toggle" id="mobileInputToggle" type="button" aria-expanded="false" aria-controls="inputRow">
-      <span>command line</span>
-      <span class="mobile-input-chevron" aria-hidden="true">⌄</span>
-    </button>
-
     <div class="input-row disabled" id="inputRow">
       <span class="prompt-symbol">$</span>
       <div class="input-visible" id="inputVisible">
         <span class="typed-text" id="typedText"></span>
         <span class="cursor" id="cursor"></span>
       </div>
-      <button class="input-submit" id="inputSubmit" type="button" aria-label="Run command">
-        <span aria-hidden="true">›</span>
-      </button>
       <input type="text" id="cmdInput" autocomplete="off" autocapitalize="off" spellcheck="false">
     </div>
   </div>

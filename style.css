@@ -253,14 +253,6 @@
       transition: opacity 0.3s ease;
     }
 
-    .mobile-input-toggle {
-      display: none;
-    }
-
-    .input-submit {
-      display: none;
-    }
-
     .input-row.disabled {
       opacity: 0;
       pointer-events: none;
@@ -342,71 +334,6 @@
 
       .input-row { padding: 0 14px 14px; gap: 6px; }
       .cursor { width: 7px; height: 16px; }
-
-      .input-submit {
-        display: grid;
-        place-items: center;
-        flex: 0 0 30px;
-        width: 30px;
-        height: 30px;
-        padding: 0 0 2px 1px;
-        border: 1px solid var(--amber-faint);
-        border-radius: 4px;
-        background: transparent;
-        color: var(--amber);
-        font: inherit;
-        font-size: 25px;
-        line-height: 1;
-        cursor: pointer;
-      }
-
-      .input-submit:active {
-        background: var(--border);
-      }
-
-      .mobile-input-toggle {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        width: 100%;
-        min-height: 34px;
-        padding: 7px 14px;
-        border: 0;
-        border-top: 1px solid var(--border);
-        background: #150f0a;
-        color: var(--amber-dim);
-        font: inherit;
-        font-size: 11px;
-        letter-spacing: 0.04em;
-        text-align: left;
-        cursor: pointer;
-      }
-
-      .mobile-input-chevron {
-        color: var(--amber);
-        font-size: 18px;
-        line-height: 0.7;
-        transform: rotate(0deg);
-        transition: transform 0.2s ease;
-      }
-
-      .terminal.input-open .mobile-input-chevron {
-        transform: rotate(180deg);
-      }
-
-      .terminal:not(.input-open) .input-row {
-        display: none;
-      }
-
-      .terminal.input-open .input-row {
-        display: flex;
-        animation: drawer-in 0.18s ease-out;
-      }
-
-      @keyframes drawer-in {
-        from { opacity: 0; transform: translateY(-5px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
     }
 
     @media (max-width: 380px) {

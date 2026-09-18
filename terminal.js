@@ -7,6 +7,8 @@
     const typedText   = document.getElementById('typedText');
     const inputVisible= document.getElementById('inputVisible');
     const inputRow    = document.getElementById('inputRow');
+    const inputSubmit = document.getElementById('inputSubmit');
+    const mobileInputToggle = document.getElementById('mobileInputToggle');
     const terminalEl  = document.getElementById('terminal');
     const hintEl      = document.getElementById('hint');
 
@@ -899,10 +901,7 @@
     function onKeyDown(e) {
       if (e.key === 'Enter') {
         e.preventDefault();
-        const cmd = currentInput;
-        runCommand(cmd);
-        clearInput();
-        scrollToBottom();
+        submitInput();
         return;
       }
       const isWordDelete =
@@ -932,6 +931,13 @@
         currentInput += e.key;
         syncView();
       }
+    }
+
+    function submitInput() {
+      const cmd = currentInput;
+      runCommand(cmd);
+      clearInput();
+      scrollToBottom();
     }
     function killWordBefore(str) {
       let i = str.length;
@@ -1215,17 +1221,20 @@
       }, 150);
 
       inputVisible.addEventListener('click', () => hiddenInput.focus());
+      inputSubmit.addEventListener('click', submitInput);
+      mobileInputToggle.addEventListener('click', () => {
+        const isOpen = terminalEl.classList.toggle('input-open');
+        mobileInputToggle.setAttribute('aria-expanded', String(isOpen));
+        if (isOpen) hiddenInput.focus();
+      });
       document.querySelector('.terminal').addEventListener('click', (e) => {
-        if (e.target.tagName === 'A') return;
+        if (e.target.tagName === 'A' || e.target === mobileInputToggle || mobileInputToggle.contains(e.target)) return;
         hiddenInput.focus();
       });
 
       hiddenInput.addEventListener('keydown', onKeyDown);
       hiddenInput.addEventListener('paste', onPaste);
       hiddenInput.addEventListener('input', onHiddenInput);
-      hiddenInput.addEventListener('beforeinput', (e) => {
-        if (e.inputType !== 'insertFromPaste') e.preventDefault();
-      });
 
       setInterval(() => {
         if (hiddenInput.value !== '') {

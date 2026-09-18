@@ -545,7 +545,7 @@
           ...envRows,
         ]);
       },
-      neofetch: () => neofetchCommand(),
+      fastfetch: () => fastfetchCommand(),
       help: () => renderPanel([
         { text: 'available commands:' },
         { blank: true },
@@ -557,7 +557,7 @@
         { label: 'uname',     value: 'print OS details' },
         { label: 'printenv',  value: 'show environment variables' },
         { label: 'date',      value: 'date-related commands' },
-        { label: 'neofetch',  value: 'you know what this does' },
+        { label: 'fastfetch',  value: 'you know what this does' },
         { label: 'echo',      value: 'print things (mostly)' },
         { label: 'rm',        value: 'remove something' },
         { label: 'sudo',      value: "don't" },
@@ -1141,9 +1141,9 @@
       return null;
     }
     // ============================================================
-    // NEOFETCH
+    // fastfetch
     // ============================================================
-    function neofetchCommand() {
+    function fastfetchCommand() {
       // The cat
       const CAT = [
         "      /\\_/\\  ",

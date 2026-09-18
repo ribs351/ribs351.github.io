@@ -260,6 +260,30 @@
 
     .input-row .prompt-symbol { flex-shrink: 0; }
 
+    .submit-button {
+      display: none;
+      width: 34px;
+      height: 30px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: transparent;
+      color: var(--amber);
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+
+    .submit-button span {
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      border-top: 2px solid currentColor;
+      border-right: 2px solid currentColor;
+      transform: rotate(45deg);
+    }
+
+    .submit-button:not(:disabled):active { background: var(--border); }
+    .submit-button:disabled { opacity: 0.25; cursor: default; }
+
     #cmdInput {
       position: absolute;
       opacity: 0;
@@ -334,6 +358,7 @@
 
       .input-row { padding: 0 14px 14px; gap: 6px; }
       .cursor { width: 7px; height: 16px; }
+      .submit-button { display: block; }
     }
 
     @media (max-width: 380px) {

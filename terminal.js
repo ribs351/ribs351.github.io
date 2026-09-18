@@ -6,6 +6,7 @@
     const hiddenInput = document.getElementById('cmdInput');
     const typedText   = document.getElementById('typedText');
     const inputVisible= document.getElementById('inputVisible');
+    const submitButton= document.getElementById('submitButton');
     const inputRow    = document.getElementById('inputRow');
     const terminalEl  = document.getElementById('terminal');
     const hintEl      = document.getElementById('hint');
@@ -888,6 +889,7 @@
 
     function syncView() {
       typedText.textContent = pendingSudo ? '*'.repeat(currentInput.length) : currentInput;
+      submitButton.disabled = currentInput.length === 0;
     }
 
     function clearInput() {
@@ -956,6 +958,21 @@
       const pasted = (e.clipboardData || window.clipboardData).getData('text');
       if (pasted) {
         currentInput += pasted.replace(/[\r\n]+/g, ' ');
+        syncView();
+      }
+    }
+
+    function onBeforeInput(e) {
+      if (e.inputType === 'insertText' || e.inputType === 'insertCompositionText') {
+        e.preventDefault();
+        currentInput += e.data || '';
+        syncView();
+        return;
+      }
+
+      if (e.inputType === 'deleteContentBackward') {
+        e.preventDefault();
+        currentInput = currentInput.slice(0, -1);
         syncView();
       }
     }
@@ -1223,19 +1240,14 @@
       hiddenInput.addEventListener('keydown', onKeyDown);
       hiddenInput.addEventListener('paste', onPaste);
       hiddenInput.addEventListener('input', onHiddenInput);
-      hiddenInput.addEventListener('beforeinput', (e) => {
-        if (e.inputType !== 'insertFromPaste') e.preventDefault();
+      hiddenInput.addEventListener('beforeinput', onBeforeInput);
+      submitButton.addEventListener('click', () => {
+        if (submitButton.disabled) return;
+        runCommand(currentInput);
+        clearInput();
+        scrollToBottom();
+        hiddenInput.focus();
       });
-
-      setInterval(() => {
-        if (hiddenInput.value !== '') {
-          if (hiddenInput.value !== currentInput) {
-            currentInput = hiddenInput.value;
-            syncView();
-          }
-          hiddenInput.value = '';
-        }
-      }, 50);
 
       window.addEventListener('load', () => hiddenInput.focus());
     }
